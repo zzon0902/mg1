@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Card Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 300px);
+            grid-gap: 15px;
+        }
+
+        .card {
+            width: 300px;
+            height: 300px;
+            background-color: #4caf50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 8px;
+            user-select: none;
+        }
+
+        .card img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+            border: 2px solid #000;
+        }
+
+        .card.flipped img {
+            display: block;
+        }
+
+        .card.matched {
+            background-color: #ddd;
+            cursor: default;
+        }
+
+        .banner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 60px 120px;
+            font-size: 3rem;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #ff0;
+            animation: fall 3s linear infinite;
+            z-index: 1000;
+        }
+
+        @keyframes fall {
+            from {
+                transform: translateY(-100vh);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(100vh);
+                opacity: 0;
+            }
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 50px 100px;
+            font-size: 3rem;
+            cursor: pointer;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .black-and-white {
+            filter: grayscale(100%);
+        }
+    </style>
+</head>
+<body>
+    <h1>Memory Card Game</h1>
+    <div class="game-board" id="gameBoard"></div>
+    <button id="resetButton">Reset</button>
+    <div class="banner" id="completionBanner">Congratulations!</div>
+
+    <audio id="matchSound" src="match-sound.mp3"></audio>
+    <audio id="winSound" src="win-sound.mp3"></audio>
+
+    <script>
+        const images = [
+            "images/tall.jpg",
+            "images/fast.jpg",
+            "images/slow.jpg",
+            "images/heavy.jpg",
+            "images/hot.jpg",
+            "images/cold.jpg",
+            "images/wet.jpg",
+            "images/dry.jpg"
+        ];
+
+        const gameBoard = document.getElementById("gameBoard");
+        const matchSound = document.getElementById("matchSound");
+        const winSound = document.getElementById("winSound");
+        const resetButton = document.getElementById("resetButton");
+        const completionBanner = document.getElementById("completionBanner");
+
+        let cards = [...images, ...images]; // Duplicate the array for pairs
+        let firstCard = null;
+        let secondCard = null;
+        let lockBoard = false;
+        let matchedCount = 0;
+
+        function initGame() {
+            matchedCount = 0;
+            completionBanner.style.display = "none";
+            gameBoard.innerHTML = "";
+            lockBoard = true;
+
+            // Shuffle cards
+            cards.sort(() => 0.5 - Math.random());
+
+            // Create card elements
+            cards.forEach(image => {
+                const card = document.createElement("div");
+                card.classList.add("card");
+                card.dataset.image = image;
+
+                const img = document.createElement("img");
+                img.src = image;
+                card.appendChild(img);
+
+                card.addEventListener("click", () => {
+                    if (lockBoard || card.classList.contains("flipped") || card.classList.contains("matched")) {
+                        return;
+                    }
+
+                    card.classList.add("flipped");
+                    playFlipSound(image);
+
+                    if (!firstCard) {
+                        firstCard = card;
+                    } else {
+                        secondCard = card;
+                        checkForMatch();
+                    }
+                });
+
+                gameBoard.appendChild(card);
+            });
+
+            // Show all cards briefly
+            const allCards = document.querySelectorAll(".card");
+            allCards.forEach(card => card.classList.add("flipped"));
+
+            setTimeout(() => {
+                allCards.forEach(card => card.classList.remove("flipped"));
+                lockBoard = false;
+            }, 5000);
+        }
+
+        function checkForMatch() {
+            if (firstCard.dataset.image === secondCard.dataset.image) {
+                const wordSound = new Audio(firstCard.dataset.image.replace("images/", "sounds/").replace(".jpg", ".mp3"));
+                wordSound.play();
+                wordSound.addEventListener("ended", () => {
+                    matchSound.play();
+                });
+
+                firstCard.classList.add("matched");
+                secondCard.classList.add("matched");
+                matchedCount += 2;
+
+                if (matchedCount === cards.length) {
+                    showCompletionBanner();
+                }
+
+                resetBoard();
+            } else {
+                lockBoard = true;
+                setTimeout(() => {
+                    firstCard.classList.remove("flipped");
+                    secondCard.classList.remove("flipped");
+                    resetBoard();
+                }, 1000);
+            }
+        }
+
+        function resetBoard() {
+            [firstCard, secondCard, lockBoard] = [null, null, false];
+        }
+
+        function showCompletionBanner() {
+            completionBanner.style.display = "block";
+            winSound.play();
+            document.querySelectorAll(".card").forEach(card => card.classList.add("black-and-white"));
+            generateConfetti();
+        }
+
+        function generateConfetti() {
+            for (let i = 0; i < 200; i++) {
+                const confetti = document.createElement("div");
+                confetti.classList.add("confetti");
+                confetti.style.left = Math.random() * 100 + "vw";
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                confetti.style.animationDuration = Math.random() * 3 + 2 + "s";
+                document.body.appendChild(confetti);
+
+                setTimeout(() => confetti.remove(), 3000);
+            }
+        }
+
+        function playFlipSound(image) {
+            const audio = new Audio(image.replace("images/", "sounds/").replace(".jpg", ".mp3"));
+            audio.play();
+        }
+
+        resetButton.addEventListener("click", initGame);
+
+        initGame();
+    </script>
+</body>
+</html>
